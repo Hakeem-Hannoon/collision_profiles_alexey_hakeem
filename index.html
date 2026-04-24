@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="description" content="Stellar Simulation Observatory — interactive exploration of N-body simulation outputs across dimension, particle count, tau, rinit, time horizon, and sample count." />
+  <title>STELLAR // Simulation Observatory</title>
+
+  <!-- Typography: Chakra Petch for technical display, JetBrains Mono for data readouts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap"
+    rel="stylesheet"
+  />
+
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='10' fill='%2300e5ff'/%3E%3Ccircle cx='32' cy='32' r='22' fill='none' stroke='%2300e5ff' stroke-width='1' opacity='0.4'/%3E%3Ccircle cx='32' cy='32' r='30' fill='none' stroke='%23b388ff' stroke-width='1' opacity='0.25'/%3E%3C/svg%3E" />
+</head>
+<body>
+  <!-- Layered background canvases for the starfield, cursor trail, and nebula glow -->
+  <canvas id="nebula-canvas" class="bg-canvas" aria-hidden="true"></canvas>
+  <canvas id="star-canvas" class="bg-canvas" aria-hidden="true"></canvas>
+  <canvas id="cursor-canvas" class="cursor-canvas" aria-hidden="true"></canvas>
+
+  <!-- Hidden constellation SVG overlay -- appears briefly, easter egg -->
+  <svg id="constellation-svg" class="constellation-overlay" aria-hidden="true" viewBox="0 0 300 200" preserveAspectRatio="xMidYMid meet"></svg>
+
+  <!-- Top telemetry bar -->
+  <header class="telemetry-bar" role="banner">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">
+        <span class="ring ring-1"></span>
+        <span class="ring ring-2"></span>
+        <span class="core"></span>
+      </div>
+      <div class="brand-text">
+        <h1>STELLAR<span class="brand-dot" data-blackhole="true">.</span></h1>
+        <p class="brand-sub">Simulation Observatory <span class="build-tag">v0.1 // OBS-ARRAY</span></p>
+      </div>
+    </div>
+
+    <div class="telemetry-stats" aria-label="Data set telemetry">
+      <div class="stat">
+        <span class="stat-label">TRANSMISSIONS</span>
+        <span class="stat-value" data-stat="total">—</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">DIMENSIONS</span>
+        <span class="stat-value" data-stat="dims">—</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">N&nbsp;VALUES</span>
+        <span class="stat-value" data-stat="ns">—</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">IN&nbsp;VIEW</span>
+        <span class="stat-value" data-stat="shown">—</span>
+      </div>
+    </div>
+
+    <button id="toggle-filters" class="icon-btn" aria-label="Toggle filters" title="Toggle filters">
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+        <path d="M3 5h18M6 12h12M10 19h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+      </svg>
+    </button>
+  </header>
+
+  <!-- Main layout: filter sidebar + primary content region -->
+  <div class="app-shell">
+
+    <!-- FILTERS -->
+    <aside id="filter-panel" class="filter-panel" aria-label="Filters and sort controls">
+      <div class="filter-panel-inner">
+
+        <div class="filter-group">
+          <div class="filter-header">
+            <h2>BREADCRUMB</h2>
+          </div>
+          <nav class="breadcrumb" id="breadcrumb" aria-label="Current selection">
+            <!-- populated by JS -->
+          </nav>
+        </div>
+
+        <div class="filter-group">
+          <div class="filter-header">
+            <h2>SORT</h2>
+          </div>
+          <div class="chip-row" id="sort-chips">
+            <button class="chip" data-sort="N_asc_d_asc" aria-pressed="true">N ↑ · d ↑</button>
+            <button class="chip" data-sort="N_desc_d_asc">N ↓ · d ↑</button>
+            <button class="chip" data-sort="d_asc_N_asc">d ↑ · N ↑</button>
+            <button class="chip" data-sort="count_desc">count ↓</button>
+          </div>
+        </div>
+
+        <div class="filter-group">
+          <div class="filter-header">
+            <h2>PARTICLE COUNT — N</h2>
+            <button class="clear-btn" data-clear="N" aria-label="Clear N filter">clear</button>
+          </div>
+          <div class="chip-row" data-filter-group="N"></div>
+        </div>
+
+        <div class="filter-group">
+          <div class="filter-header">
+            <h2>DIMENSION — d</h2>
+            <button class="clear-btn" data-clear="d" aria-label="Clear dimension filter">clear</button>
+          </div>
+          <div class="chip-row" data-filter-group="d"></div>
+        </div>
+
+        <div class="filter-group">
+          <div class="filter-header">
+            <h2>τ&nbsp;&nbsp;TAU</h2>
+            <button class="clear-btn" data-clear="tau">clear</button>
+          </div>
+          <div class="chip-row" data-filter-group="tau"></div>
+        </div>
+
+        <div class="filter-group">
+          <div class="filter-header">
+            <h2>r&nbsp;INIT</h2>
+            <button class="clear-btn" data-clear="rinit">clear</button>
+          </div>
+          <div class="chip-row" data-filter-group="rinit"></div>
+        </div>
+
+        <div class="filter-group">
+          <div class="filter-header">
+            <h2>T&nbsp;HORIZON</h2>
+            <button class="clear-btn" data-clear="T">clear</button>
+          </div>
+          <div class="chip-row" data-filter-group="T"></div>
+        </div>
+
+        <div class="filter-group">
+          <div class="filter-header">
+            <h2>SAMPLE COUNT</h2>
+            <button class="clear-btn" data-clear="count">clear</button>
+          </div>
+          <div class="chip-row" data-filter-group="count"></div>
+        </div>
+
+        <button id="clear-all-btn" class="clear-all">⟲ RESET ALL FILTERS</button>
+
+      </div>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="main-stage" id="main-stage">
+      <!-- content swapped by JS based on state -->
+      <div class="loading-state" id="loading-state">
+        <div class="orbit-loader" aria-hidden="true">
+          <span></span><span></span><span></span>
+        </div>
+        <p class="loading-text">ACQUIRING SIGNAL…</p>
+      </div>
+    </main>
+  </div>
+
+  <!-- Compare tray (floating) -->
+  <section id="compare-tray" class="compare-tray" aria-label="Comparison queue" hidden>
+    <div class="compare-tray-inner">
+      <div class="compare-tray-header">
+        <div>
+          <span class="compare-count" id="compare-count">0</span>
+          <span class="compare-label">SELECTED FOR COMPARISON</span>
+        </div>
+        <div class="compare-actions">
+          <button id="open-compare-btn" class="btn primary">OPEN COMPARISON →</button>
+          <button id="clear-compare-btn" class="btn ghost">clear</button>
+        </div>
+      </div>
+      <div class="compare-thumbs" id="compare-thumbs"></div>
+    </div>
+  </section>
+
+  <!-- Lightbox modal -->
+  <div id="lightbox" class="lightbox" role="dialog" aria-modal="true" aria-label="Image inspection" hidden>
+    <div class="lightbox-backdrop" data-close-lightbox></div>
+    <div class="lightbox-frame">
+      <header class="lightbox-header">
+        <div class="lightbox-title" id="lightbox-title"></div>
+        <div class="lightbox-controls">
+          <button class="icon-btn" id="zoom-out-btn" title="Zoom out" aria-label="Zoom out">−</button>
+          <span class="zoom-readout" id="zoom-readout">100%</span>
+          <button class="icon-btn" id="zoom-in-btn" title="Zoom in" aria-label="Zoom in">+</button>
+          <button class="icon-btn" id="zoom-reset-btn" title="Reset view" aria-label="Reset view">⟲</button>
+          <button class="icon-btn" id="compare-toggle-btn" title="Add to comparison" aria-label="Toggle comparison">◎</button>
+          <button class="icon-btn danger" data-close-lightbox title="Close" aria-label="Close">✕</button>
+        </div>
+      </header>
+      <div class="lightbox-stage" id="lightbox-stage">
+        <button class="nav-btn nav-prev" id="lightbox-prev" aria-label="Previous image">‹</button>
+        <div class="lightbox-canvas" id="lightbox-canvas">
+          <img id="lightbox-image" alt="" draggable="false" />
+        </div>
+        <button class="nav-btn nav-next" id="lightbox-next" aria-label="Next image">›</button>
+      </div>
+      <footer class="lightbox-footer" id="lightbox-footer">
+        <!-- metadata chips injected by JS -->
+      </footer>
+    </div>
+  </div>
+
+  <!-- Comparison modal -->
+  <div id="compare-modal" class="compare-modal" role="dialog" aria-modal="true" aria-label="Comparison view" hidden>
+    <div class="lightbox-backdrop" data-close-compare></div>
+    <div class="compare-frame">
+      <header class="lightbox-header">
+        <div class="lightbox-title">COMPARISON ARRAY</div>
+        <div class="lightbox-controls">
+          <button class="icon-btn danger" data-close-compare aria-label="Close">✕</button>
+        </div>
+      </header>
+      <div class="compare-grid" id="compare-grid"></div>
+    </div>
+  </div>
+
+  <!-- Comet streak element, animated via JS -->
+  <div id="comet" class="comet" aria-hidden="true"></div>
+
+  <!-- Satellite easter egg -->
+  <div id="satellite" class="satellite" aria-hidden="true" title="Hello, traveler.">
+    <svg viewBox="0 0 48 48" width="36" height="36">
+      <rect x="20" y="20" width="8" height="8" fill="#0b1023" stroke="currentColor" stroke-width="1"/>
+      <rect x="6"  y="22" width="12" height="4" fill="none" stroke="currentColor" stroke-width="1"/>
+      <rect x="30" y="22" width="12" height="4" fill="none" stroke="currentColor" stroke-width="1"/>
+      <line x1="24" y1="20" x2="24" y2="12" stroke="currentColor" stroke-width="1"/>
+      <circle cx="24" cy="10" r="2" fill="currentColor"/>
+    </svg>
+  </div>
+
+  <script src="app.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,56 @@
+name: Update files.json
+
+# Runs whenever the images/ directory changes on the main branch.
+# Regenerates data/files.json from the PNGs present and commits the result
+# back to the branch, so the STELLAR site always reflects what's uploaded.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'images/**'
+      - '.github/workflows/update-files-json.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          # Need a token that can push back to the branch.
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # Fetch full history so we can commit cleanly.
+          fetch-depth: 0
+
+      - name: Regenerate data/files.json
+        run: |
+          mkdir -p data
+          # List PNGs in images/, sort them, emit a JSON array.
+          # Handles the empty case (produces []) and filenames with spaces.
+          if [ -d images ] && [ -n "$(find images -maxdepth 1 -name '*.png' -print -quit)" ]; then
+            find images -maxdepth 1 -name '*.png' -printf '%f\n' \
+              | sort \
+              | jq -R . \
+              | jq -s . > data/files.json
+          else
+            echo '[]' > data/files.json
+          fi
+          echo "--- data/files.json ---"
+          cat data/files.json
+
+      - name: Commit changes if any
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet data/files.json; then
+            echo "No changes to commit."
+          else
+            git add data/files.json
+            git commit -m "chore: regenerate data/files.json from images/ [skip ci]"
+            git push
+          fi
